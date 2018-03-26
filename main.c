@@ -17,7 +17,10 @@
 #include "glcd/fonts/font5x7.h"
 #include <avr/pgmspace.h>
 #define F_CPU 16000000UL  // 1 MHz
-
+#define ERROR 1
+#define SUCCESS 0
+#define EEWrite 0xA0
+#define EERead 0xA1
 
 /* Function prototypes */
 static void setup(void);
@@ -28,10 +31,23 @@ static void setup(void)
 	glcd_init();
 }
 
+void TWIInit(void);
+void TWIStart(void);
+void TWIStop(void);
+void TWWrite(uint8_t u8data);
+uint8_t TWIReadACK(void);
+uint8_t TWIReadNACK(void);
+uint8_t TWIGetStatus(void);
+uint8_t EEWriteByte(uint16_t u16addr, uint8_t u8data);
+uint8_t EEReadByte(uint16_t u16addr);
+uint8_t EEWritePage(uint8_t page, uint8_t u8data);
+uint8_t EEReadPage(uint8_t page, uint8_t u8data);
+
+char string[30] = "";
+
 uint8_t ms, ms10,ms100,sec,min,entprell, state;
-
-
-
+uint8_t test = 0;
+uint8_t error= 0;
 
 ISR (TIMER1_COMPA_vect)
 {
@@ -109,16 +125,9 @@ int main(void)
 	
 	/* Backlight pin PL3, set as output, set high for 100% output */
 	DDRB |= (1<<PB2);
-	//PORTB |= (1<<PB2);
+	// PORTB |= (1<<PB2);
 	PORTB &= ~(1<<PB2);
-	
-	DDRC &= ~(1<<PC0); 	//Eingang Hallsensor
-	PORTC |= (1<<PC0);	//Pullup Hallsensor einschalten
-	
-	DDRC |=(1<<PC1); 	//Eingang Hallsensor
-	PORTC |= (1<<PC1);	//Pullup Hallsensor einschalten
-	
-	
+	 
 	DDRD &= ~((1<<PD6) | (1<<PD2) | (1<<PD5)); 	//Taster 1-3
 	PORTD |= ((1<<PD6) | (1<<PD2) | (1<<PD5)); 	//PUllups für Taster einschalten
 	
@@ -145,7 +154,23 @@ int main(void)
 	glcd_clear();
 	glcd_write();
 	
-min=1;
+	glcd_tiny_set_font(Font5x7,5,7,32,127);
+	glcd_clear_buffer();
+	
+	TWIInit();
+	
+	error = EEWriteByte(20,8);
+	delay_ms(1000);
+	
+	
+	test = EEReadByte(20);
+	
+	sprintf(string,"%01d %01d", test, error);
+	glcd_draw_string_xy(0,0,string);
+	
+	
+	min = 1;
+	
 	while(1) 
 	{
 		/*switch(2)
@@ -178,3 +203,191 @@ min=1;
 	
 	return 0;
 }//end of main
+
+
+
+
+
+
+
+
+
+void TWIInit(void)
+{
+	//set SCL to 400kHz
+	TWSR = 0x00;
+	TWBR = 0x0C;
+	//enable TWI
+	TWCR = (1<<TWEN);
+}
+
+
+void TWIStart(void)
+{
+	//send start signal 
+	TWCR = (1<<TWINT)|(1<<TWSTA)|(1<<TWEN);
+	while((TWCR & (1<<TWINT)) == 0);
+}
+
+
+void TWIStop(void)
+{
+	TWCR = (1<<TWINT)|(1<<TWSTO)|(1<<TWEN);
+}
+
+
+void TWIWrite(uint8_t u8data)
+{
+	TWDR = u8data;
+	TWCR = (1<<TWINT)|(1<<TWEN);
+	while ((TWCR & (1<<TWINT)) == 0);
+}
+
+
+uint8_t TWIReadACK(void)
+{
+	//read byte with NACK
+	TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWEA);
+	while ((TWCR & (TWINT)) == 0);
+		return TWDR;
+}
+
+
+uint8_t TWIReadNACK(void)
+{
+	//read byte with NACK
+	TWCR = (1<<TWINT)|(1<<TWEN);
+	while ((TWCR & (1<<TWINT)) == 0);
+		return TWDR;
+}
+
+
+uint8_t TWIGetStatus(void)
+{
+	uint8_t status;
+	//mask status
+	status = TWSR & 0xF8;
+		return status;
+}
+
+
+uint8_t EEWriteByte(uint16_t u16addr, uint8_t u8data)
+{
+	TWIStart();
+	if (TWIGetStatus() != 0x08)
+		return 1;
+	//select devise and send A2 A1 A0 address bits
+	TWIWrite((EEWrite)|(uint8_t)((u16addr & 0x0700)>>7));
+	if (TWIGetStatus() != 0x18)
+		return 2;
+	//send the rest of address
+	TWIWrite((uint8_t)(u16addr));
+	if (TWIGetStatus() != 0x28)
+		return 3;
+	//write byte to eeprom
+	TWIWrite(u8data);
+	if (TWIGetStatus() != 0x28)
+		return 4;
+	TWIStop();
+		return SUCCESS;
+}
+
+
+uint8_t EEReadByte(uint16_t u16addr)
+{
+	uint8_t u8data = 0;
+	
+	//uint8_t databyte
+	TWIStart();
+	if (TWIGetStatus() != 0x08)
+		return 1;
+	//select devise and send A2 A1 A0 address bits
+	TWIWrite((EEWrite)|((uint8_t)((u16addr & 0x0700)>>7)));
+	if (TWIGetStatus() != 0x18)
+		return 2;
+	//send the rest of address
+	TWIWrite((uint8_t)(u16addr));
+	if (TWIGetStatus() != 0x28)
+        return 3;
+    //send start
+    TWIStart();
+    if (TWIGetStatus() != 0x10)
+        return 4;
+    //select devise and send read bit
+    TWIWrite((EERead)|((uint8_t)((u16addr & 0x0700)>>7))|1);
+    if (TWIGetStatus() != 0x40)
+        return 5;
+    u8data = TWIReadNACK();
+    if (TWIGetStatus() != 0x58)
+        return 6;
+    TWIStop();
+		return u8data;
+}
+
+/*
+uint8_t EEWritePage(uint8_t page, uint8_t u8data)
+{
+    //calculate page address
+    uint8_t u8paddr = 0;
+    uint8_t i;
+    u8paddr = page<<4;
+    TWIStart();
+    if (TWIGetStatus() != 0x08)
+        return ERROR;
+    //select page start address and send A2 A1 A0 bits send write command
+    TWIWrite(((EEWrite)|(u8paddr>>3))&(~1));
+    if (TWIGetStatus() != 0x18)
+        return ERROR;
+    //send the rest of address
+    TWIWrite((u8paddr<<4));
+    if (TWIGetStatus() != 0x28)
+        return ERROR;
+    //write page to eeprom
+    for (i=0; i<16; i++)
+    {
+        TWIWrite(u8data++);
+            if (TWIGetStatus() != 0x28)
+                return ERROR;
+    }
+    TWIStop();
+    return SUCCESS;
+}
+
+
+uint8_t EEReadPage(uint8_t page, uint8_t u8data)
+{
+    //calculate page address
+    uint8_t u8paddr = 0;
+    uint8_t i;
+    u8paddr = page<<4;
+    TWIStart();
+    if (TWIGetStatus() != 0x08)
+        return ERROR;
+    //select page start address and send A2 A1 A0 bits send write command
+    TWIWrite(((EERead)|(u8paddr>>3))&(~1));
+    if (TWIGetStatus() != 0x18)
+        return ERROR;
+    //send the rest of address
+    TWIWrite((u8paddr<<4));
+    if (TWIGetStatus() != 0x28)
+        return ERROR;
+    //send start
+    TWIStart();
+    if (TWIGetStatus() != 0x10)
+        return ERROR;
+    //select devise and send read bit
+    TWIWrite(((EERead)|(u8paddr>>3))|1);
+    if (TWIGetStatus() != 0x40)
+        return ERROR;
+    for (i=0; i<15; i++)
+    {
+        u8data++ = TWIReadACK();
+            if (TWIGetStatus() != 0x50)
+                return ERROR;
+    }  
+    u8data = TWIReadNACK();
+    if (TWIGetStatus() != 0x58)
+        return ERROR;
+    TWIStop();
+    return SUCCESS;
+}*/
