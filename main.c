@@ -42,12 +42,17 @@ uint8_t EEWriteByte(uint16_t u16addr, uint8_t u8data);
 uint8_t EEReadByte(uint16_t u16addr);
 uint8_t EEWritePage(uint8_t page, uint8_t u8data);
 uint8_t EEReadPage(uint8_t page, uint8_t u8data);
+void EEWriteWord (uint16_t speiste, uint32_t var32);
+uint32_t EEReadWord(uint16_t speiste);
 
 char string[30] = "";
 
 uint8_t ms, ms10,ms100,sec,min,entprell, state;
-uint8_t test = 0;
-uint8_t error= 0;
+uint32_t test = 0;
+uint8_t test1= 0;	
+uint8_t test2= 0;	
+uint8_t test3= 0;	
+uint8_t test4= 0;	
 
 ISR (TIMER1_COMPA_vect)
 {
@@ -125,8 +130,8 @@ int main(void)
 	
 	/* Backlight pin PL3, set as output, set high for 100% output */
 	DDRB |= (1<<PB2);
-	// PORTB |= (1<<PB2);
-	PORTB &= ~(1<<PB2);
+	PORTB |= (1<<PB2);
+	//PORTB &= ~(1<<PB2);
 	 
 	DDRD &= ~((1<<PD6) | (1<<PD2) | (1<<PD5)); 	//Taster 1-3
 	PORTD |= ((1<<PD6) | (1<<PD2) | (1<<PD5)); 	//PUllups für Taster einschalten
@@ -159,17 +164,36 @@ int main(void)
 	
 	TWIInit();
 	
-	EEWriteByte(1,8);
+	EEWriteWord(0,98465132);
+
+	
 	delay_ms(1000);
 	
 	
-	test = EEReadByte(1);
-	test = EEReadByte(2);
-	test = EEReadByte(3);
-	test = EEReadByte(4);
+	test = EEReadWord(0);
 	
-	sprintf(string,"%01d", 1);
+	test1 = EEReadByte(0);
+	test2 = EEReadByte(1);
+	test3 = EEReadByte(2);
+	test4 = EEReadByte(3);
+	
+	
+	sprintf(string,"%01d", test1);
 	glcd_draw_string_xy(0,0,string);
+	
+	sprintf(string,"%01d", test2);
+	glcd_draw_string_xy(0,10,string);
+	
+	sprintf(string,"%01d", test3);
+	glcd_draw_string_xy(0,20,string);
+	
+	sprintf(string,"%01d", test4);
+	glcd_draw_string_xy(0,30,string);
+	
+	
+	sprintf(string,"%01lu", test);
+	glcd_draw_string_xy(30,30,string);
+	
 	
 	
 	min = 1;
@@ -206,13 +230,6 @@ int main(void)
 	
 	return 0;
 }//end of main
-
-
-
-
-
-
-
 
 
 void TWIInit(void)
@@ -280,12 +297,13 @@ uint8_t EEWriteByte ( uint16_t u16addr, uint8_t u8data )
 	addr_l = u16addr;
 	addr_h = (u16addr>>8);
 	
-    TWIStart();   
+    TWIStart();  
 	TWIWrite(EEWrite); 
 	TWIWrite(addr_l);
 	TWIWrite(addr_h);
 	TWIWrite(u8data);
 	TWIStop();
+	delay_ms(10);
     return SUCCESS;
 }
 
@@ -306,6 +324,7 @@ uint8_t EEReadByte ( uint16_t u16addr )
 	TWIWrite(EERead);
 	u8data = TWIReadNACK();
     TWIStop();
+	delay_ms(10);
 	
     return u8data;
 }
@@ -362,3 +381,50 @@ uint8_t EEReadPage(uint8_t page, uint8_t u8data)
     return SUCCESS;
 }*/
 
+
+
+void EEWriteWord (uint16_t speiste, uint32_t var32)
+{
+
+	uint8_t speicher1 = 0;
+	uint8_t speicher2 = 0;
+	uint8_t speicher3 = 0;
+	uint8_t speicher4 = 0;
+	
+	speicher1 = var32;
+	speicher2 = var32 >> 8;
+	speicher3 = var32 >> 16;
+	speicher4 = var32 >> 24;
+	
+	EEWriteByte(speiste, speicher1);
+	speiste++;
+	EEWriteByte(speiste, speicher2);
+	speiste++;
+	EEWriteByte(speiste, speicher3);
+	speiste++;
+	EEWriteByte(speiste, speicher4);
+	
+}
+
+
+uint32_t EEReadWord(uint16_t speiste)
+{
+	uint32_t var32 = 0;
+	
+	speiste += 3;
+	var32 = EEReadByte(speiste);
+	var32 <<= 8;
+	
+	speiste--;
+	var32 += EEReadByte(speiste);
+	var32 <<= 8;
+	
+	speiste--;
+	var32 += EEReadByte(speiste);
+	var32 <<= 8;
+	
+	speiste--;
+	var32 += EEReadByte(speiste);
+	
+	return var32;
+}
