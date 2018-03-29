@@ -1,4 +1,4 @@
-/*
+  /*
 
 	Demo of glcd library with AVR8 microcontroller
 	
@@ -159,13 +159,16 @@ int main(void)
 	
 	TWIInit();
 	
-	error = EEWriteByte(20,8);
+	EEWriteByte(1,8);
 	delay_ms(1000);
 	
 	
-	test = EEReadByte(20);
+	test = EEReadByte(1);
+	test = EEReadByte(2);
+	test = EEReadByte(3);
+	test = EEReadByte(4);
 	
-	sprintf(string,"%01d %01d", test, error);
+	sprintf(string,"%01d", 1);
 	glcd_draw_string_xy(0,0,string);
 	
 	
@@ -271,57 +274,40 @@ uint8_t TWIGetStatus(void)
 }
 
 
-uint8_t EEWriteByte(uint16_t u16addr, uint8_t u8data)
+uint8_t EEWriteByte ( uint16_t u16addr, uint8_t u8data )
 {
-	TWIStart();
-	if (TWIGetStatus() != 0x08)
-		return 1;
-	//select devise and send A2 A1 A0 address bits
-	TWIWrite((EEWrite)|(uint8_t)((u16addr & 0x0700)>>7));
-	if (TWIGetStatus() != 0x18)
-		return 2;
-	//send the rest of address
-	TWIWrite((uint8_t)(u16addr));
-	if (TWIGetStatus() != 0x28)
-		return 3;
-	//write byte to eeprom
+	uint8_t addr_l, addr_h;
+	addr_l = u16addr;
+	addr_h = (u16addr>>8);
+	
+    TWIStart();   
+	TWIWrite(EEWrite); 
+	TWIWrite(addr_l);
+	TWIWrite(addr_h);
 	TWIWrite(u8data);
-	if (TWIGetStatus() != 0x28)
-		return 4;
 	TWIStop();
-		return SUCCESS;
+    return SUCCESS;
 }
 
 
-uint8_t EEReadByte(uint16_t u16addr)
+uint8_t EEReadByte ( uint16_t u16addr )
 {
+	uint8_t addr_l, addr_h;
+	addr_l = u16addr;
+	addr_h = (u16addr>>8);
 	uint8_t u8data = 0;
 	
-	//uint8_t databyte
-	TWIStart();
-	if (TWIGetStatus() != 0x08)
-		return 1;
-	//select devise and send A2 A1 A0 address bits
-	TWIWrite((EEWrite)|((uint8_t)((u16addr & 0x0700)>>7)));
-	if (TWIGetStatus() != 0x18)
-		return 2;
-	//send the rest of address
-	TWIWrite((uint8_t)(u16addr));
-	if (TWIGetStatus() != 0x28)
-        return 3;
-    //send start
+    
     TWIStart();
-    if (TWIGetStatus() != 0x10)
-        return 4;
-    //select devise and send read bit
-    TWIWrite((EERead)|((uint8_t)((u16addr & 0x0700)>>7))|1);
-    if (TWIGetStatus() != 0x40)
-        return 5;
-    u8data = TWIReadNACK();
-    if (TWIGetStatus() != 0x58)
-        return 6;
+	TWIWrite(EEWrite);
+	TWIWrite(addr_l);
+	TWIWrite(addr_h);
+    TWIStart();
+	TWIWrite(EERead);
+	u8data = TWIReadNACK();
     TWIStop();
-		return u8data;
+	
+    return u8data;
 }
 
 /*
@@ -331,17 +317,12 @@ uint8_t EEWritePage(uint8_t page, uint8_t u8data)
     uint8_t u8paddr = 0;
     uint8_t i;
     u8paddr = page<<4;
+	
     TWIStart();
-    if (TWIGetStatus() != 0x08)
-        return ERROR;
     //select page start address and send A2 A1 A0 bits send write command
     TWIWrite(((EEWrite)|(u8paddr>>3))&(~1));
-    if (TWIGetStatus() != 0x18)
-        return ERROR;
     //send the rest of address
     TWIWrite((u8paddr<<4));
-    if (TWIGetStatus() != 0x28)
-        return ERROR;
     //write page to eeprom
     for (i=0; i<16; i++)
     {
@@ -360,25 +341,16 @@ uint8_t EEReadPage(uint8_t page, uint8_t u8data)
     uint8_t u8paddr = 0;
     uint8_t i;
     u8paddr = page<<4;
+	
     TWIStart();
-    if (TWIGetStatus() != 0x08)
-        return ERROR;
     //select page start address and send A2 A1 A0 bits send write command
     TWIWrite(((EERead)|(u8paddr>>3))&(~1));
-    if (TWIGetStatus() != 0x18)
-        return ERROR;
     //send the rest of address
     TWIWrite((u8paddr<<4));
-    if (TWIGetStatus() != 0x28)
-        return ERROR;
     //send start
     TWIStart();
-    if (TWIGetStatus() != 0x10)
-        return ERROR;
     //select devise and send read bit
     TWIWrite(((EERead)|(u8paddr>>3))|1);
-    if (TWIGetStatus() != 0x40)
-        return ERROR;
     for (i=0; i<15; i++)
     {
         u8data++ = TWIReadACK();
@@ -386,8 +358,7 @@ uint8_t EEReadPage(uint8_t page, uint8_t u8data)
                 return ERROR;
     }  
     u8data = TWIReadNACK();
-    if (TWIGetStatus() != 0x58)
-        return ERROR;
     TWIStop();
     return SUCCESS;
 }*/
+
