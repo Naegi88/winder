@@ -1,12 +1,14 @@
-  /*
-
-	Demo of glcd library with AVR8 microcontroller
-	
-	Tested on a custom made PCB (intended for another project)
-
-	See ../README.md for connection details
-
-*/
+////////////////////////////////////////////////////////////////////////////////////
+//																				   //
+//		Silvan Nägeli															   //
+//																				   //
+//		06.04.2018																   //
+//																				   //
+//		main.c / winder													   //
+//																				   //
+//		github: https://github.com/Naegi88										   //
+//																				   //
+/////////////////////////////////////////////////////////////////////////////////////
 
 #include <avr/io.h>
 #include "glcd/glcd.h"
@@ -21,56 +23,8 @@
 #define F_CPU 16000000UL  // 1 MHz
 
 
-/* Function prototypes */
-static void setup(void);
-
-static void setup(void)
-{
-	/* Set up glcd, also sets up SPI and relevent GPIO pins */
-	glcd_init();
-}
-
-void TWIInit(void);
-void TWIStart(void);
-void TWIStop(void);
-void TWWrite(uint8_t u8data);
-uint8_t TWIReadACK(void);
-uint8_t TWIReadNACK(void);
-uint8_t TWIGetStatus(void);
-uint8_t EEWriteByte(uint16_t u16addr, uint8_t u8data);
-uint8_t EEReadByte(uint16_t u16addr);
-uint8_t EEWritePage(uint8_t page, uint8_t u8data);
-uint8_t EEReadPage(uint8_t page, uint8_t u8data);
-void EEWriteWord (uint16_t speiste, uint32_t var32);
-uint32_t EEReadWord(uint16_t speiste);
-
 char string[30] = "";
 
-uint8_t ms, ms10,ms100,sec,min,entprell, state;
-uint32_t test = 0;
-	
-
-ISR (TIMER1_COMPA_vect)
-{
-	ms10++;
-	if(entprell != 0)entprell--;
-	if(ms10==10)	//10ms
-	{
-		ms10=0;
-		ms100++;
-	}
-    if(ms100==10)	//100ms
-	{
-		ms100=0;
-		sec++;
-	}
-	if(sec==10)	//Minute
-	{
-		sec=0;
-		min++;
-		if(state==11)state=10;
-	}
-}
 
 const unsigned char bat[] PROGMEM= 
 { 
@@ -131,64 +85,23 @@ int main(void)
 	 
 	DDRD &= ~((1<<PD6) | (1<<PD2) | (1<<PD5)); 	//Taster 1-3
 	PORTD |= ((1<<PD6) | (1<<PD2) | (1<<PD5)); 	//PUllups für Taster einschalten
-	
-	DDRD &= ~(1<<PD4); //T0 Counter Input
-	TCCR0B |= (1<<CS02) | (1<<CS01) | (1<<CS00);//Counter 0 enabled clock on rising edge
-	
-	//Timer 1 Configuration
-	OCR1A = 0x009C;	//OCR1A = 0x3D08;==1sec
-	
-    TCCR1B |= (1 << WGM12);
-    // Mode 4, CTC on OCR1A
 
-    TIMSK1 |= (1 << OCIE1A);
-    //Set interrupt on compare match
-
-    TCCR1B |= (1 << CS12) | (1 << CS10);
-    // set prescaler to 1024 and start the timer
-
-    sei();
-    // enable interrupts
 	
-	setup();
+	TWIInit();
 	
+	glcd_init();
 	glcd_clear();
 	glcd_write();
 	
 	glcd_tiny_set_font(Font5x7,5,7,32,127);
 	glcd_clear_buffer();
 	
-	TWIInit();
-	
-	EEWriteWord(0,4200000);
-	
-	test = EEReadWord(0);
-	
-	sprintf(string,"%01lu",test);
-	glcd_draw_string_xy(0,0,string);
-	
-	min = 1;
+
+	sprintf(string,"Hello World");
+	glcd_draw_string_xy(10,20,string);
 	
 	while(1) 
 	{
-		/*switch(2)
-		{
-			case 1:	glcd_test_circles();
-					break;
-			case 2:	glcd_test_counter_and_graph();
-					break;
-			case 3:	glcd_test_text_up_down();
-					break;
-			case 4:	glcd_test_tiny_text();
-					break;
-			case 5:	glcd_test_hello_world();
-					break;
-			case 6:	glcd_test_rectangles();
-					break;
-			case 7:	glcd_test_scrolling_graph();
-					break;	
-			
-		}//end of switch*/	
 		
 		if(!(PIND & (1<<PD2)))
 		{
